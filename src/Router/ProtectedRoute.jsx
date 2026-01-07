@@ -17,7 +17,6 @@ export default function ProtectedRoute({
     profileCompleted,
     loading 
   } = UseAuth();
-  console.log({ currentUser, userRole, isEmailVerified, profileCompleted, loading });
 
   const location = useLocation();
 

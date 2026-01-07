@@ -1,11 +1,5 @@
 // contexts/AuthContext.jsx
 import React, { createContext, useState, useEffect } from "react";
-import { 
-  onAuthStateChanged,
-  signOut
-} from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase/firebase";
 import AuthService from "../services/authServices";
 
 export const AuthContext = createContext(null);
@@ -16,27 +10,33 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [profileCompleted, setProfileCompleted] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
 
-  // ✅ Load user data on auth change
+  // Listen to auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = AuthService.onAuthStateChange(async (user) => {
       if (user) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          const userData = await AuthService.getUserData(user);
           
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          if (userData) {
             setCurrentUser(user);
             setUserRole(userData.role || 'user');
             setProfileCompleted(userData.onboardingComplete || false);
+            setEmailVerified(userData.emailVerified || false);
           }
         } catch (error) {
-          console.error('Error fetching user data:', error);
+          console.error('Error getting user data:', error);
+          setCurrentUser(null);
+          setUserRole(null);
+          setProfileCompleted(false);
+          setEmailVerified(false);
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
         setProfileCompleted(false);
+        setEmailVerified(false);
       }
       setLoading(false);
     });
@@ -44,10 +44,10 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ ADD THIS FUNCTION
+  // ✅ Refresh user data
   const refreshUserData = async () => {
     try {
-      const user = auth.currentUser;
+      const user = AuthService.getCurrentUser();
       
       if (!user) {
         console.warn('No user to refresh');
@@ -56,15 +56,14 @@ export const AuthProvider = ({ children }) => {
 
       console.log('🔄 Refreshing user data for:', user.uid);
 
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = await AuthService.getUserData(user);
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        
+      if (userData) {
         console.log('✅ User data refreshed:', userData);
         
         setUserRole(userData.role || 'user');
         setProfileCompleted(userData.onboardingComplete || false);
+        setEmailVerified(userData.emailVerified || false);
         
         return userData;
       }
@@ -75,35 +74,96 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
+    setLoading(true);
+    setError(null);
     try {
-      setError(null);
-      const result = await AuthService.login(email, password);
-      return result;
+      const res = await AuthService.login(email, password);
+      
+      if (res.error) {
+        setError(res.error);
+        setCurrentUser(null);
+        setUserRole(null);
+        setEmailVerified(false);
+        setProfileCompleted(false);
+        setLoading(false);
+        return res;
+      }
+      
+      if (res.user && res.emailVerified) {
+        setCurrentUser(res.user);
+        setUserRole(res.role);
+        setEmailVerified(res.emailVerified);
+        setProfileCompleted(res.profileCompleted);
+      }
+      
+      setLoading(false);
+      return res;
     } catch (err) {
-      setError(err.message);
-      throw err;
+      const errorMsg = err.message || "Login failed";
+      setError(errorMsg);
+      setCurrentUser(null);
+      setUserRole(null);
+      setEmailVerified(false);
+      setProfileCompleted(false);
+      setLoading(false);
+      return { user: null, role: null, error: errorMsg };
     }
   };
 
-  const register = async (email, password, displayName) => {
+  const register = async (email, password, display_name) => {
+    setLoading(true);
+    setError(null);
     try {
-      setError(null);
-      const result = await AuthService.register(email, password, displayName);
-      return result;
+      const user = await AuthService.register(email, password, display_name);
+      setLoading(false);
+      return user;
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Register failed");
+      setLoading(false);
       throw err;
     }
   };
 
   const logout = async () => {
+    setLoading(true);
     try {
-      await signOut(auth);
+      await AuthService.logout();
       setCurrentUser(null);
       setUserRole(null);
       setProfileCompleted(false);
+      setEmailVerified(false);
+      setLoading(false);
     } catch (err) {
       setError(err.message);
+      setLoading(false);
+      throw err;
+    }
+  };
+
+  const forgotPassword = async (email) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await AuthService.forgotPassword(email);
+      setLoading(false);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+      throw err;
+    }
+  };
+
+  const resendVerification = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await AuthService.resendVerificationEmail();
+      setLoading(false);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
   };
@@ -115,15 +175,17 @@ export const AuthProvider = ({ children }) => {
     authLoading: loading,
     error,
     isAuthenticated: !!currentUser,
-    isEmailVerified: currentUser?.emailVerified || false,
-    profileCompleted, // ✅ Make sure this is here
+    isEmailVerified: emailVerified,
     isAdmin: userRole === 'admin',
     isCoach: userRole === 'coach',
     isUser: userRole === 'user',
+    profileCompleted,
     login,
     register,
     logout,
-    refreshUserData, // ✅ ADD THIS TO VALUE
+    forgotPassword,
+    resendVerification,
+    refreshUserData,
   };
 
   return (
@@ -132,4 +194,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-

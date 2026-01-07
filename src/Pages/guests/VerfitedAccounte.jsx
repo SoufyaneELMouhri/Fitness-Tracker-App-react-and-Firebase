@@ -1,33 +1,64 @@
+// Pages/guests/VerifiedAccount.jsx
 import React, { useState, useEffect } from 'react';
 import { Container, Alert, Button, Spinner } from 'react-bootstrap';
-import { CheckCircle, Envelope, ExclamationTriangle } from 'react-bootstrap-icons';
+import { CheckCircle, Envelope, ExclamationTriangle, ArrowRight } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../firebase/firebase';
+import { UseAuth } from '../../Hooks/UseAuth';
 import AuthService from '../../services/authServices';
 
 export default function VerifiedAccount() {
   const navigate = useNavigate();
+  const { currentUser, isAuthenticated, isEmailVerified, refreshUserData } = UseAuth();
+  
   const [resending, setResending] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
   const [resendError, setResendError] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  // Check if user is logged in
+  // ✅ 1. Auto redirect if already verified
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoading(false);
-      
-      if (!user) {
-        setResendError('No user logged in. Please register or login again.');
+    if (isAuthenticated && isEmailVerified) {
+      console.log('Email already verified, redirecting...');
+      navigate('/onboarding', { replace: true });
+    }
+  }, [isAuthenticated, isEmailVerified, navigate]);
+
+  // ✅ Check email verification and update Firestore
+  const handleCheckVerification = async () => {
+    if (!currentUser) {
+      setResendError('No user logged in. Please login again.');
+      return;
+    }
+
+    setChecking(true);
+    setResendMessage('');
+    setResendError('');
+
+    try {
+      const result = await AuthService.checkAndUpdateEmailVerification();
+
+      if (result.verified) {
+        setResendMessage('✅ Email verified successfully!');
+        
+        // Refresh auth context
+        await refreshUserData();
+
+        // Navigate to onboarding
+        setTimeout(() => {
+          navigate('/onboarding', { replace: true });
+        }, 1500); // ✅ 2. Reduced from 2000ms to 1500ms
+      } else {
+        setResendError(result.message);
       }
-    });
+    } catch (error) {
+      console.error('Verification check error:', error);
+      setResendError(error.message || 'Failed to verify. Please try again.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
-    return () => unsubscribe();
-  }, []);
-
+  // ✅ Resend verification email
   const handleResendEmail = async () => {
     if (!currentUser) {
       setResendError('No user logged in. Please login again.');
@@ -40,44 +71,51 @@ export default function VerifiedAccount() {
 
     try {
       await AuthService.resendVerificationEmail();
-      setResendMessage('Verification email sent successfully! Check your inbox.');
+      setResendMessage('✅ Verification email sent! Check your inbox.');
     } catch (error) {
       console.error('Resend Error:', error);
       
       if (error.message.includes('already verified')) {
-        setResendMessage('Email is already verified! You can login now.');
-        setTimeout(() => navigate('/login'), 2000);
+        setResendMessage('✅ Email is already verified! You can login now.');
+        setTimeout(() => navigate('/login'), 1500);
       } else if (error.code === 'auth/too-many-requests') {
-        setResendError('Too many requests. Please wait a few minutes before trying again.');
+        setResendError('⚠️ Too many requests. Please wait a few minutes.');
       } else if (error.message.includes('No user')) {
         setResendError('Session expired. Please login again.');
       } else {
-        setResendError(error.message || 'Failed to send email. Please try again later.');
+        setResendError(error.message || 'Failed to send email. Please try again.');
       }
     } finally {
       setResending(false);
     }
   };
 
-  if (loading) {
+  // ✅ 3. Loading state while checking auth
+  if (!isAuthenticated && currentUser === undefined) {
     return (
-      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+      <div 
+        className="bg-light d-flex align-items-center justify-content-center"
+        style={{ minHeight: '100vh' }}
+      >
         <Spinner animation="border" variant="primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center p-3">
-      <Container style={{ maxWidth: '600px' }}>
-        <div className="bg-white rounded-4 shadow-sm p-4 p-md-5">
+    <div 
+      className="bg-light d-flex align-items-center justify-content-center p-3"
+      style={{ minHeight: '100vh' }}
+    >
+      <Container style={{ maxWidth: '580px' }}>
+        <div className="bg-white rounded-4 shadow p-4 p-md-5">
           <div className="text-center">
             {/* Icon Circle */}
             <div 
-              className={`${currentUser ? 'bg-success' : 'bg-warning'} rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center shadow`}
+              className={`${isAuthenticated ? 'bg-success' : 'bg-warning'} rounded-circle mx-auto mb-4 d-flex align-items-center justify-content-center shadow-sm`}
               style={{ width: '80px', height: '80px' }}
             >
-              {currentUser ? (
+              {isAuthenticated ? (
                 <CheckCircle size={40} color="white" />
               ) : (
                 <ExclamationTriangle size={40} color="white" />
@@ -85,62 +123,96 @@ export default function VerifiedAccount() {
             </div>
 
             {/* Title */}
-            <h2 className="fw-bold mb-4 text-dark">
-              {currentUser ? 'Account Created Successfully!' : 'Email Verification Required'}
-            </h2>
+            <h1 className="fw-bolder mb-3 text-dark" style={{ fontSize: '1.75rem' }}>
+              {isAuthenticated ? 'Verify Your Email' : 'Email Verification Required'}
+            </h1>
 
             {/* Alert */}
-            {currentUser ? (
-              <Alert variant="success" className="text-start mb-4">
-                <p className="mb-2 fw-semibold">
-                  Please verify your email address
+            {isAuthenticated ? (
+              <Alert variant="info" className="text-start mb-4 border-0 shadow-sm">
+                <p className="mb-2 fw-bold" style={{ fontSize: '0.95rem' }}>
+                  📧 Check your inbox
                 </p>
-                <p className="mb-0 small">
-                  We've sent a verification link to <strong>{currentUser.email}</strong>. 
-                  Click the link to activate your account and then you can login.
+                <p className="mb-0" style={{ fontSize: '0.9rem' }}>
+                  We sent a verification link to <strong>{currentUser?.email}</strong>. 
+                  Click the link to activate your account.
                 </p>
               </Alert>
             ) : (
-              <Alert variant="warning" className="text-start mb-4">
-                <p className="mb-2 fw-semibold">
-                  No active session found
+              <Alert variant="warning" className="text-start mb-4 border-0 shadow-sm">
+                <p className="mb-2 fw-bold" style={{ fontSize: '0.95rem' }}>
+                  ⚠️ No active session
                 </p>
-                <p className="mb-0 small">
+                <p className="mb-0" style={{ fontSize: '0.9rem' }}>
                   Please login to resend the verification email.
                 </p>
               </Alert>
             )}
 
-            {/* Resend Success Message */}
+            {/* Success Message */}
             {resendMessage && (
-              <Alert variant="info" className="mb-3">
-                <Envelope size={16} className="me-2" />
+              <Alert variant="success" className="mb-3 border-0 shadow-sm fw-semibold">
                 {resendMessage}
               </Alert>
             )}
 
-            {/* Resend Error Message */}
+            {/* Error Message */}
             {resendError && (
-              <Alert variant="danger" className="mb-3">
+              <Alert variant="danger" className="mb-3 border-0 shadow-sm fw-semibold">
                 {resendError}
               </Alert>
             )}
 
             {/* Help Text */}
-            <p className="text-muted small mb-3">
-              Didn't receive the email? Check your spam folder or resend it.
-            </p>
+            {isAuthenticated && !resendMessage && (
+              <p className="text-muted mb-4" style={{ fontSize: '0.9rem' }}>
+                Didn't receive the email? Check your spam folder or click resend.
+              </p>
+            )}
 
             {/* Buttons */}
-            <div className="d-grid gap-2">
-              {/* Resend Email Button - Only if user is logged in */}
-              {currentUser && (
+            <div className="d-grid gap-3">
+              {/* Check Verification Button */}
+              {isAuthenticated && (
+                <Button
+                  variant="success"
+                  size="lg"
+                  onClick={handleCheckVerification}
+                  disabled={checking}
+                  className="fw-bold shadow-sm"
+                  style={{ 
+                    height: '56px',
+                    fontSize: '1rem',
+                    letterSpacing: '0.3px'
+                  }}
+                >
+                  {checking ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={20} className="me-2" />
+                      I've Verified My Email
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Resend Email Button */}
+              {isAuthenticated && (
                 <Button
                   variant="outline-primary"
                   size="lg"
                   onClick={handleResendEmail}
-                  disabled={resending}
-                  className="rounded-3"
+                  disabled={resending || checking}
+                  className="fw-semibold"
+                  style={{ 
+                    height: '56px',
+                    fontSize: '1rem',
+                    letterSpacing: '0.3px'
+                  }}
                 >
                   {resending ? (
                     <>
@@ -149,7 +221,7 @@ export default function VerifiedAccount() {
                     </>
                   ) : (
                     <>
-                      <Envelope size={18} className="me-2" />
+                      <Envelope size={20} className="me-2" />
                       Resend Verification Email
                     </>
                   )}
@@ -158,12 +230,28 @@ export default function VerifiedAccount() {
 
               {/* Go to Login Button */}
               <Button
-                variant="primary"
+                variant={isAuthenticated ? "outline-secondary" : "primary"}
                 size="lg"
                 onClick={() => navigate('/login')}
-                className="rounded-3"
+                disabled={checking || resending}
+                className="fw-semibold"
+                style={{ 
+                  height: '56px',
+                  fontSize: '1rem',
+                  letterSpacing: '0.3px'
+                }}
               >
-                {currentUser ? 'Go to Login' : 'Login to Resend Email'}
+                {isAuthenticated ? (
+                  <>
+                    Go to Login
+                    <ArrowRight size={20} className="ms-2" />
+                  </>
+                ) : (
+                  <>
+                    Login to Resend Email
+                    <ArrowRight size={20} className="ms-2" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

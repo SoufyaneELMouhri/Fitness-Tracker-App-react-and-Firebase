@@ -28,15 +28,15 @@ const onboardingServices = {
       const stepAnswers = data.stepAnswers || {};
 
       // ✅ Check which step is next
-      if (!stepAnswers.step1 || Object.keys(stepAnswers.step1).length === 0) {
+      if (!stepAnswers.step1 || !stepAnswers.step1.answeredAt) {
         return 1; // Step 1 not completed
       }
       
-      if (!stepAnswers.step2 || Object.keys(stepAnswers.step2).length === 0) {
+      if (!stepAnswers.step2 || !stepAnswers.step2.answeredAt) {
         return 2; // Step 2 not completed
       }
       
-      if (!stepAnswers.step3 || Object.keys(stepAnswers.step3).length === 0) {
+      if (!stepAnswers.step3 || !stepAnswers.step3.answeredAt) {
         return 3; // Step 3 not completed
       }
 
@@ -59,16 +59,13 @@ const onboardingServices = {
       const userRef = doc(db, 'users', user.uid);
       
       await updateDoc(userRef, {
-        // Save to root level
-        age: answers.age,
-        weight: answers.weight,
-        height: answers.height,
+        // ✅ Save data to root level
+        age: Number(answers.age),
+        weight: Number(answers.weight),
+        height: Number(answers.height),
         
-        // Save full answers
+        // ✅ Save only timestamp in stepAnswers
         'stepAnswers.step1': {
-          age: answers.age,
-          weight: answers.weight,
-          height: answers.height,
           answeredAt: serverTimestamp()
         },
         
@@ -97,16 +94,13 @@ const onboardingServices = {
       const userRef = doc(db, 'users', user.uid);
       
       await updateDoc(userRef, {
-        // Save to root level
+        // ✅ Save data to root level
         goals: answers.goals,
         workoutFrequency: answers.workoutFrequency,
         dietPreferences: answers.dietPreferences,
         
-        // Save full answers
+        // ✅ Save only timestamp in stepAnswers
         'stepAnswers.step2': {
-          goals: answers.goals,
-          workoutFrequency: answers.workoutFrequency,
-          dietPreferences: answers.dietPreferences,
           answeredAt: serverTimestamp()
         },
         
@@ -135,16 +129,13 @@ const onboardingServices = {
       const userRef = doc(db, 'users', user.uid);
       
       await updateDoc(userRef, {
-        // Save to root level
-        sleepHours: answers.sleepHours,
+        // ✅ Save data to root level
+        sleepHours: Number(answers.sleepHours),
         activityLevel: answers.activityLevel,
-        dailyWaterIntake: answers.dailyWaterIntake,
+        dailyWaterIntake: Number(answers.dailyWaterIntake),
         
-        // Save full answers
+        // ✅ Save only timestamp in stepAnswers
         'stepAnswers.step3': {
-          sleepHours: answers.sleepHours,
-          activityLevel: answers.activityLevel,
-          dailyWaterIntake: answers.dailyWaterIntake,
           answeredAt: serverTimestamp()
         },
         
@@ -182,20 +173,31 @@ const onboardingServices = {
       const data = userDoc.data();
       
       return {
-        // Root level data
+        // User data
         email: data.email || '',
+        display_name: data.display_name || '',
+        role: data.role || 'user',
+        
+        // Step 1 data
         age: data.age || null,
         weight: data.weight || null,
         height: data.height || null,
+        
+        // Step 2 data
         goals: data.goals || '',
         workoutFrequency: data.workoutFrequency || '',
         dietPreferences: data.dietPreferences || '',
+        
+        // Step 3 data
         sleepHours: data.sleepHours || null,
         activityLevel: data.activityLevel || '',
         dailyWaterIntake: data.dailyWaterIntake || null,
-        onboardingComplete: data.onboardingComplete || false,
         
-        // Step answers
+        // Status
+        onboardingComplete: data.onboardingComplete || false,
+        emailVerified: data.emailVerified || false,
+        
+        // Step completion status
         stepAnswers: data.stepAnswers || {
           step1: null,
           step2: null,
@@ -237,8 +239,8 @@ const onboardingServices = {
     try {
       const stepAnswers = await onboardingServices.getStepAnswers(step);
       
-      // ✅ Step is completed if answers exist and not empty
-      return stepAnswers !== null && Object.keys(stepAnswers).length > 0;
+      // ✅ Step is completed if answeredAt exists
+      return stepAnswers !== null && stepAnswers.answeredAt !== undefined;
     } catch (error) {
       console.error('CHECK STEP COMPLETED ERROR:', error);
       return false;
@@ -275,12 +277,14 @@ const onboardingServices = {
       const userRef = doc(db, 'users', user.uid);
       
       await updateDoc(userRef, {
-        stepAnswers: {
-          step1: null,
-          step2: null,
-          step3: null
-        },
+        // ✅ Clear step completion markers
+        'stepAnswers.step1': null,
+        'stepAnswers.step2': null,
+        'stepAnswers.step3': null,
+        
+        // ✅ Keep user data but mark as incomplete
         onboardingComplete: false,
+        onboardingCompletedAt: null,
         updated_at: serverTimestamp()
       });
 

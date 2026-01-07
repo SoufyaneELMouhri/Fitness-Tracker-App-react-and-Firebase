@@ -1,3 +1,4 @@
+// services/authServices.js
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -7,10 +8,15 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged  
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebase';
 
 const AuthService = {
+  // ✅ Get current user
+  getCurrentUser: () => {
+    return auth.currentUser;
+  },
+
   register: async (email, password, display_name) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -35,7 +41,7 @@ const AuthService = {
         role: "user",
         created_at: serverTimestamp(),
         emailVerified: false,
-        profileCompleted: false,
+        onboardingComplete: false,
       });
 
       console.log("User registered. Verification email sent.");
@@ -55,20 +61,9 @@ const AuthService = {
       );
       
       await userCredential.user.reload();
+      const user = auth.currentUser;
 
-      if (!userCredential.user.emailVerified) {
-        return { 
-          user: userCredential.user, 
-          role: null, 
-          error: null,
-          emailVerified: false,
-          profileCompleted: false
-        };
-      }
-
-      const userDocRef = doc(db, "users", userCredential.user.uid);
-      await setDoc(userDocRef, { emailVerified: true }, { merge: true });
-
+      const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
@@ -77,21 +72,41 @@ const AuthService = {
           user: null, 
           role: null, 
           error: 'User profile not found.',
-          emailVerified: true,
+          emailVerified: false,
           profileCompleted: false
         };
       }
 
       const userData = userDoc.data();
-      const role = userData.role || 'user';
-      const profileCompleted = userData.profileCompleted || false;
+
+      // ✅ Update emailVerified in Firestore if verified in Auth
+      if (user.emailVerified && !userData.emailVerified) {
+        console.log('✅ Email verified! Updating Firestore...');
+        
+        await updateDoc(userDocRef, {
+          emailVerified: true,
+          emailVerifiedAt: serverTimestamp(),
+          updated_at: serverTimestamp()
+        });
+      }
+
+      // ✅ Check if email not verified
+      if (!user.emailVerified) {
+        return { 
+          user: user, 
+          role: userData.role || 'user', 
+          error: null,
+          emailVerified: false,
+          profileCompleted: userData.onboardingComplete || false
+        };
+      }
 
       return { 
-        user: userCredential.user, 
-        role: role, 
+        user: user, 
+        role: userData.role || 'user', 
         error: null,
         emailVerified: true,
-        profileCompleted: profileCompleted
+        profileCompleted: userData.onboardingComplete || false
       };
     } catch (error) {
       console.error("LOGIN ERROR:", error);
@@ -111,9 +126,57 @@ const AuthService = {
         user: null, 
         role: null, 
         error: errorMessage,
-        emailVerified: true,
+        emailVerified: false,
         profileCompleted: false
       };
+    }
+  },
+
+  // ✅ Check and update email verification
+  checkAndUpdateEmailVerification: async () => {
+    try {
+      const user = auth.currentUser;
+      
+      if (!user) {
+        throw new Error('No user is currently signed in.');
+      }
+
+      // Reload to get latest status
+      await user.reload();
+      const updatedUser = auth.currentUser;
+
+      if (!updatedUser.emailVerified) {
+        return {
+          verified: false,
+          message: 'Email not verified yet. Please check your inbox.'
+        };
+      }
+
+      // Update Firestore
+      const userDocRef = doc(db, 'users', updatedUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+
+        if (!userData.emailVerified) {
+          await updateDoc(userDocRef, {
+            emailVerified: true,
+            emailVerifiedAt: serverTimestamp(),
+            updated_at: serverTimestamp()
+          });
+
+          console.log('✅ Email verified! Firestore updated.');
+        }
+      }
+
+      return {
+        verified: true,
+        message: 'Email verified successfully!'
+      };
+    } catch (error) {
+      console.error('CHECK EMAIL VERIFICATION ERROR:', error);
+      throw error;
     }
   },
 
@@ -148,6 +211,7 @@ const AuthService = {
     try {
       await signOut(auth);
       console.log("Logout successful");
+      return true;
     } catch (error) {
       console.error("LOGOUT ERROR:", error);
       throw error;
@@ -174,15 +238,37 @@ const AuthService = {
         return null;
       }
 
+      await user.reload();
+
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        
+        // Update emailVerified if changed
+        if (user.emailVerified && !userData.emailVerified) {
+          console.log('✅ Email verified! Updating Firestore...');
+          
+          await updateDoc(userDocRef, {
+            emailVerified: true,
+            emailVerifiedAt: serverTimestamp(),
+            updated_at: serverTimestamp()
+          });
+          
+          return {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            ...userData,
+            emailVerified: true
+          };
+        }
+        
         return {
           uid: user.uid,
           email: user.email,
-          emailVerified: user.emailVerified,
           displayName: user.displayName,
           photoURL: user.photoURL,
           ...userData
@@ -191,11 +277,11 @@ const AuthService = {
         return {
           uid: user.uid,
           email: user.email,
-          emailVerified: user.emailVerified,
           displayName: user.displayName,
           photoURL: user.photoURL,
           role: 'user',
-          profileCompleted: false
+          emailVerified: false,
+          onboardingComplete: false
         };
       }
     } catch (error) {
@@ -203,11 +289,11 @@ const AuthService = {
       return {
         uid: user.uid,
         email: user.email,
-        emailVerified: user.emailVerified,
         displayName: user.displayName,
         photoURL: user.photoURL,
         role: 'user',
-        profileCompleted: false
+        emailVerified: false,
+        onboardingComplete: false
       };
     }
   },

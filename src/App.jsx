@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { RouterProvider } from "react-router-dom";
 import router from "./Router/routes";
-import { useAuth } from "./context/AuthContext";
 import Spinner from "./Components/componentGuests/Spinner";
+import { UseAuth } from "./Hooks/UseAuth";
 
 function App() {
-  const { loading } = useAuth();
+  const { loading } = UseAuth();
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {

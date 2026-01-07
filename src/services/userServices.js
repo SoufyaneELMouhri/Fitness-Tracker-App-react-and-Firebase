@@ -1,4 +1,3 @@
-// services/userServices.js
 import { 
   collection, 
   doc, 
@@ -11,7 +10,7 @@ import {
   serverTimestamp,
   setDoc
 } from 'firebase/firestore';
-import { auth, db } from '../config/firebase'; // Adjust path as needed
+import { auth, db } from '../firebase/firebase'; 
 
 const UserServices = {
   // Get currently connected/logged-in user

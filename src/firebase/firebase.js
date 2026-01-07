@@ -1,7 +1,7 @@
 // firebase/firebase.js
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth,connectAuthEmulator } from "firebase/auth";
+import { getFirestore,connectFirestoreEmulator } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,4 +16,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  firebaseConfig.authDomain = "localhost";
+  connectAuthEmulator(auth, "http://localhost:9099");
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  
+}
 export default auth;

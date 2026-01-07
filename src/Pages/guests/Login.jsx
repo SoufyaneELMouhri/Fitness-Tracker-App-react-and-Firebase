@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+// pages/Login.jsx
+import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { Formik } from 'formik';
+import { Link } from "react-router-dom";
+
 import * as Yup from 'yup';
-import { useNavigate, Link } from 'react-router-dom';
 import { EnvelopeFill, LockFill, EyeFill, EyeSlashFill } from 'react-bootstrap-icons';
-import AuthService from '../../services/authServices';
+import { UseAuth } from '../../Hooks/UseAuth';
+import { useRoleNavigation } from '../../Hooks/useRoleNavigation';
 
 // Validation Schema
 const loginSchema = Yup.object().shape({
@@ -17,40 +20,37 @@ const loginSchema = Yup.object().shape({
 });
 
 export default function Login() {
-  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const { login, error, isAuthenticated } = UseAuth(); 
+  const { navigateToDashboard } = useRoleNavigation(); 
+  useEffect(() => {
+    if (error) {
+      setAuthError(error);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigateToDashboard();
+    }
+  }, [isAuthenticated, navigateToDashboard]);
 
   const handleLogin = async (values, { setSubmitting }) => {
     setAuthError(null);
 
     try {
-      // Call login service
-      const { user, role, error } = await AuthService.login(values.email, values.password);
+      const res = await login(values.email, values.password);
+      
 
-      if (error) {
-        setAuthError(error);
-        setSubmitting(false);
-        return;
+      if (res && res.error) {
+        setAuthError(res.error);
       }
 
-      if (!user || !role) {
-        setAuthError('Login failed. Please try again.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Role-based redirection
-      if (role === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
-      } else if (role === 'coach') {
-        navigate('/coach/dashboard', { replace: true });
-      } else {
-        navigate('/app/dashboard', { replace: true });
-      }
+      setSubmitting(false);
     } catch (error) {
       console.error('Login error:', error);
-      setAuthError('An unexpected error occurred. Please try again.');
+      setAuthError(error.message || 'An unexpected error occurred.');
       setSubmitting(false);
     }
   };
@@ -75,7 +75,6 @@ export default function Login() {
                   </Alert>
                 )}
 
-                {/* Formik Form */}
                 <Formik
                   initialValues={{ email: '', password: '' }}
                   validationSchema={loginSchema}
@@ -90,7 +89,13 @@ export default function Login() {
                     handleSubmit,
                     isSubmitting,
                   }) => (
-                    <Form onSubmit={handleSubmit}>
+                    <Form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSubmit(e);
+                      }}
+                      noValidate
+                    >
                       {/* Email Field */}
                       <Form.Group className="mb-3">
                         <Form.Label className="fw-semibold">Email Address</Form.Label>
@@ -157,7 +162,7 @@ export default function Login() {
 
                       {/* Forgot Password Link */}
                       <div className="text-end mb-3">
-                        <Link to="/forgot-password" className="text-primary text-decoration-none small">
+                        <Link to="/forget-password" className="text-primary text-decoration-none small">
                           Forgot password?
                         </Link>
                       </div>

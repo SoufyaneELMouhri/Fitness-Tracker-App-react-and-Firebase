@@ -1,6 +1,14 @@
 import React from 'react';
 import { Container, Row, Col, Card, Button } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import { UseAuth } from '../../Hooks/UseAuth';
+import { useRoleNavigation } from '../../Hooks/useRoleNavigation';
+
 export default function Home() {
+  const navigate = useNavigate();
+  const { isAuthenticated, currentUser } = UseAuth();
+  const { navigateToDashboard } = useRoleNavigation();
+
   return (
     <div>
       {/* Hero Section */}
@@ -8,23 +16,63 @@ export default function Home() {
         <Container>
           <Row className="align-items-center">
             <Col xs={12} md={6} className="mb-4 mb-md-0">
-              <h1 className="display-4 fw-bold">Welcome to Our Platform</h1>
+              <h1 className="display-4 fw-bold">
+                {isAuthenticated 
+                  ? `Welcome Back, ${currentUser?.display_name || 'User'}!` 
+                  : 'Welcome to FitTracker'}
+              </h1>
               <p className="lead">
-                Discover amazing features and services designed to make your life easier. 
-                Join thousands of satisfied users today.
+                {isAuthenticated
+                  ? 'Ready to continue your fitness journey? Track your progress and achieve your goals.'
+                  : 'Discover amazing features and services designed to make your fitness goals a reality. Join thousands of satisfied users today.'}
               </p>
+              
+              {/* ✅ Conditional Buttons */}
               <div className="d-flex flex-wrap gap-3">
-                <Button variant="light" size="lg">Get Started</Button>
-                <Button variant="outline-light" size="lg">Learn More</Button>
+                {isAuthenticated ? (
+                  <>
+                    <Button 
+                      variant="light" 
+                      size="lg"
+                      onClick={navigateToDashboard}
+                    >
+                      Go to Dashboard
+                    </Button>
+                    <Button 
+                      variant="outline-light" 
+                      size="lg"
+                      onClick={() => navigate('/app/workouts')}
+                    >
+                      My Workouts
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button 
+                      variant="light" 
+                      size="lg"
+                      onClick={() => navigate('/register')}
+                    >
+                      Get Started
+                    </Button>
+                    <Button 
+                      variant="outline-light" 
+                      size="lg"
+                      onClick={() => navigate('/login')}
+                    >
+                      Sign In
+                    </Button>
+                  </>
+                )}
               </div>
             </Col>
             <Col xs={12} md={6}>
               <Card className="shadow-lg rounded-4 overflow-hidden">
                 <Card.Img 
                   variant="top" 
-                  src="/public/image_runing.jpg" 
+                  src="/image_runing.jpg" 
                   alt="fitness image"
-                  style={{ objectFit: 'cover', height: '100%' }}
+                  style={{ objectFit: 'cover', height: '400px' }}
                 />
               </Card>
             </Col>
@@ -37,39 +85,41 @@ export default function Home() {
         <Container>
           <div className="text-center mb-5">
             <h2 className="fw-bold">Our Features</h2>
-            <p className="text-muted">Everything you need in one place</p>
+            <p className="text-muted">Everything you need to reach your fitness goals</p>
           </div>
           <Row className="g-4">
             {[
               {
-                title: 'Fast & Reliable',
-                description: 'Lightning-fast performance with 99.9% uptime guarantee for all your needs.',
-                color: '#667eea'
+                title: 'Track Workouts',
+                description: 'Log your exercises, sets, reps, and monitor your progress over time with detailed analytics.',
+                color: '#667eea',
+                icon: '💪'
               },
               {
-                title: 'Secure & Safe',
-                description: 'Enterprise-grade security to protect your data with advanced encryption.',
-                color: '#48bb78'
+                title: 'Nutrition Plans',
+                description: 'Plan your meals, track calories and macros, and maintain a balanced diet effortlessly.',
+                color: '#48bb78',
+                icon: '🥗'
               },
               {
-                title: 'Easy to Use',
-                description: 'Intuitive interface designed for everyone, no technical skills required.',
-                color: '#4299e1'
+                title: 'Progress Reports',
+                description: 'Visualize your fitness journey with charts, graphs, and achievement milestones.',
+                color: '#4299e1',
+                icon: '📊'
               }
             ].map((feature, idx) => (
               <Col xs={12} md={4} key={idx}>
-                <Card className="h-100 text-center shadow-sm border-0 p-4 rounded-3">
+                <Card className="h-100 text-center shadow-sm border-0 p-4 rounded-3 hover-lift">
                   <div className="mb-3 d-flex align-items-center justify-content-center" style={{
                     width: '80px',
                     height: '80px',
                     borderRadius: '50%',
                     backgroundColor: `${feature.color}20`,
                     color: feature.color,
-                    margin: '0 auto'
+                    margin: '0 auto',
+                    fontSize: '2rem'
                   }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={feature.color} strokeWidth="2">
-                      <circle cx="12" cy="12" r="10"></circle>
-                    </svg>
+                    {feature.icon}
                   </div>
                   <Card.Title className="fw-bold">{feature.title}</Card.Title>
                   <Card.Text className="text-muted">{feature.description}</Card.Text>
@@ -85,19 +135,44 @@ export default function Home() {
         <Container>
           <Row className="align-items-center">
             <Col xs={12} md={8}>
-              <h2 className="fw-bold">Ready to get started?</h2>
-              <p className="lead text-white-50">
-                Join our community today and experience the difference.
-              </p>
+              {isAuthenticated ? (
+                <>
+                  <h2 className="fw-bold">Keep Pushing Forward!</h2>
+                  <p className="lead text-white-50">
+                    Your fitness goals are within reach. Stay consistent and track your progress daily.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="fw-bold">Ready to get started?</h2>
+                  <p className="lead text-white-50">
+                    Join our community today and transform your fitness journey.
+                  </p>
+                </>
+              )}
             </Col>
             <Col xs={12} md={4} className="text-md-end">
-              <Button variant="light" size="lg">Sign Up Now</Button>
+              {isAuthenticated ? (
+                <Button 
+                  variant="light" 
+                  size="lg"
+                  onClick={navigateToDashboard}
+                >
+                  View Dashboard
+                </Button>
+              ) : (
+                <Button 
+                  variant="light" 
+                  size="lg"
+                  onClick={() => navigate('/register')}
+                >
+                  Sign Up Now
+                </Button>
+              )}
             </Col>
           </Row>
         </Container>
       </section>
-
-
     </div>
   );
 }

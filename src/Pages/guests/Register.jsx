@@ -94,7 +94,7 @@ export default function Register() {
                         let errorMessage = 'Registration failed. Please try again.';
                         
                         if (error.code === 'auth/email-already-in-use') {
-                          errorMessage = 'This email is already registered.';
+                          errorMessage = 'This email is already registered Please go to Login .';
                         } else if (error.code === 'auth/weak-password') {
                           errorMessage = 'Password is too weak.';
                         } else if (error.code === 'auth/invalid-email') {

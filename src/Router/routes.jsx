@@ -13,8 +13,9 @@ import CoachLayout from '../Pages/coachDashboard/CoachLayout';
 import NotFound from '../Pages/guests/NotFound';
 import Unauthorized from '../Pages/guests/Unauthorized';
 import Nutrition from '../Pages/userFitness/Nutrition';
-import RolePProtectedRoute from './ProtectedRoute';
 import ProtectedRoute from './ProtectedRoute';
+import ForgetPassword from '../Pages/guests/ForgetPassword';
+import VerifiedAccount from '../Pages/guests/VerfitedAccounte';
 const router = createBrowserRouter([
     {
         path: '/',
@@ -23,11 +24,13 @@ const router = createBrowserRouter([
             { index: true, element: <Home /> },
             { path: 'login', element: <Login /> },
             { path: 'register', element: <Register /> },
+            {path : 'forget-password', element : <ForgetPassword />},
+            {path : 'verified-account', element : <VerifiedAccount/>}
         ],
     },
     {
         path : 'app',
-        element : <ProtectedRoute>
+        element : <ProtectedRoute allowedRoles={'user'}>
                       <LayoutUser/>
                   </ProtectedRoute>,
         children : [
@@ -41,11 +44,14 @@ const router = createBrowserRouter([
     },
     {
         path : '/admin',
-        element : <RolePProtectedRoute allowedRoles={['admin']}><AdminLayout/></RolePProtectedRoute>,
+        element : <ProtectedRoute allowedRoles={['admin']}><AdminLayout/></ProtectedRoute>,
+        children : [
+            { index: true, element : <AdminLayout/> }
+        ]
     },
     {
         path : '/coach',
-        element : <RolePProtectedRoute allowedRoles={['coach']}><CoachLayout/></RolePProtectedRoute>,
+        element : <ProtectedRoute allowedRoles={['coach']}><CoachLayout/></ProtectedRoute>,
     },
     { path: '*', element: <NotFound /> },
     {

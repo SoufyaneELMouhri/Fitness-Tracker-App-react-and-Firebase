@@ -1,10 +1,23 @@
+// routes/ProtectedRoute.jsx
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import Spinner from '../Components/componentGuests/Spinner';
+import { UseAuth } from '../Hooks/UseAuth';
 
-export default function ProtectedRoute({ children }) {
-  const { currentUser, isEmailVerified, loading } = useAuth();
+export default function ProtectedRoute({ 
+  children, 
+  allowedRoles = [],
+  requireEmailVerification = true,
+  // requireProfileCompletion = true 
+}) {
+  const { 
+    currentUser, 
+    userRole, 
+    isEmailVerified, 
+    // profileCompleted,
+    loading 
+  } = UseAuth();
+
   const location = useLocation();
 
   if (loading) {
@@ -15,8 +28,17 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!isEmailVerified) {
-    return <Navigate to="/verify-email" replace />;
+  if (requireEmailVerification && !isEmailVerified) {
+    return <Navigate to="/verified-account" replace />;
+  }
+
+  // if (requireProfileCompletion && !profileCompleted) {
+  //   return <Navigate to="/onboarding" replace />;
+  // }
+
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+    console.warn('Access denied:', { userRole, allowedRoles });
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return children;

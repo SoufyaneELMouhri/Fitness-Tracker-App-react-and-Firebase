@@ -1,5 +1,6 @@
 //context/index.jsx
 import { AuthProvider } from "./AuthContext";
+import { OnboardingProvider } from "./OnboardingContext";
 import { UserProvider } from "./UserContext";
 
 const AppProvider = ({ children }) => {
@@ -7,7 +8,9 @@ const AppProvider = ({ children }) => {
         <>
             <AuthProvider>
                 <UserProvider>
-                    {children}
+                    <OnboardingProvider>
+                        {children}
+                    </OnboardingProvider>
                 </UserProvider>
             </AuthProvider>
         </>

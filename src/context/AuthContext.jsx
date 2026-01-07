@@ -1,5 +1,11 @@
 // contexts/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useEffect } from "react";
+import { 
+  onAuthStateChanged,
+  signOut
+} from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 import AuthService from "../services/authServices";
 
 export const AuthContext = createContext(null);
@@ -9,23 +15,28 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
-  // Listen to auth state changes
+  // ✅ Load user data on auth change
   useEffect(() => {
-    const unsubscribe = AuthService.onAuthStateChange(async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const userData = await AuthService.getUserData(user);
-          setCurrentUser(userData);
-          setUserRole(userData.role || 'user');
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setCurrentUser(user);
+            setUserRole(userData.role || 'user');
+            setProfileCompleted(userData.onboardingComplete || false);
+          }
         } catch (error) {
-          console.error('Error getting user data:', error);
-          setCurrentUser(null);
-          setUserRole(null);
+          console.error('Error fetching user data:', error);
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
+        setProfileCompleted(false);
       }
       setLoading(false);
     });
@@ -33,94 +44,66 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ FIXED login - handle error properly
-  const login = async (email, password) => {
-    setLoading(true);
-    setError(null);
+  // ✅ ADD THIS FUNCTION
+  const refreshUserData = async () => {
     try {
-      const res = await AuthService.login(email, password);
+      const user = auth.currentUser;
       
-      // ✅ Check if there's an error in response
-      if (res.error) {
-        setError(res.error);
-        setCurrentUser(null);
-        setUserRole(null);
-        setLoading(false);
-        return res; // Return with error
+      if (!user) {
+        console.warn('No user to refresh');
+        return;
       }
+
+      console.log('🔄 Refreshing user data for:', user.uid);
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
       
-      // ✅ Only set user if login successful
-      if (res.user && res.emailVerified) {
-        setCurrentUser(res.user);
-        setUserRole(res.role);
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        console.log('✅ User data refreshed:', userData);
+        
+        setUserRole(userData.role || 'user');
+        setProfileCompleted(userData.onboardingComplete || false);
+        
+        return userData;
       }
-      
-      setLoading(false);
-      return res;
-    } catch (err) {
-      const errorMsg = err.message || "Login failed";
-      setError(errorMsg);
-      setCurrentUser(null);
-      setUserRole(null);
-      setLoading(false);
-      return { user: null, role: null, error: errorMsg };
+    } catch (error) {
+      console.error('❌ Error refreshing user data:', error);
+      throw error;
     }
   };
 
-  const register = async (email, password, display_name) => {
-    setLoading(true);
-    setError(null);
+  const login = async (email, password) => {
     try {
-      const user = await AuthService.register(email, password, display_name);
-      setLoading(false);
-      return user;
+      setError(null);
+      const result = await AuthService.login(email, password);
+      return result;
     } catch (err) {
-      setError(err.message || "Register failed");
-      setLoading(false);
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  const register = async (email, password, displayName) => {
+    try {
+      setError(null);
+      const result = await AuthService.register(email, password, displayName);
+      return result;
+    } catch (err) {
+      setError(err.message);
       throw err;
     }
   };
 
   const logout = async () => {
-    setLoading(true);
     try {
-      await AuthService.logout();
+      await signOut(auth);
       setCurrentUser(null);
       setUserRole(null);
-      setLoading(false);
+      setProfileCompleted(false);
     } catch (err) {
       setError(err.message);
-      setLoading(false);
-      throw err;
-    }
-  };
-
-  // forgot password
-  const forgotPassword = async (email) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await AuthService.forgotPassword(email);
-      setLoading(false);
-      return result;
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-      throw err;
-    }
-  };
-
-  // resend verification
-  const resendVerification = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await AuthService.resendVerificationEmail();
-      setLoading(false);
-      return result;
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
       throw err;
     }
   };
@@ -133,15 +116,14 @@ export const AuthProvider = ({ children }) => {
     error,
     isAuthenticated: !!currentUser,
     isEmailVerified: currentUser?.emailVerified || false,
+    profileCompleted, // ✅ Make sure this is here
     isAdmin: userRole === 'admin',
     isCoach: userRole === 'coach',
     isUser: userRole === 'user',
-    profileCompleted: currentUser?.profileCompleted || false,
     login,
     register,
     logout,
-    forgotPassword,
-    resendVerification,
+    refreshUserData, // ✅ ADD THIS TO VALUE
   };
 
   return (

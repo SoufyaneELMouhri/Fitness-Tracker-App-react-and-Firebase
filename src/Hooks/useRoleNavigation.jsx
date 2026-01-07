@@ -19,10 +19,10 @@ export const useRoleNavigation = () => {
       return;
     }
 
-    // if (!profileCompleted) {
-    //   navigate('/onboarding', { replace: true });
-    //   return;
-    // }
+    if (!profileCompleted) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
 
     const path = getDashboardPath();
     navigate(path, { replace: true });

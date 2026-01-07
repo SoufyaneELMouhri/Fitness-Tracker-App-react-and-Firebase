@@ -8,15 +8,16 @@ export default function ProtectedRoute({
   children, 
   allowedRoles = [],
   requireEmailVerification = true,
-  // requireProfileCompletion = true 
+  requireProfileCompletion = true 
 }) {
   const { 
     currentUser, 
     userRole, 
     isEmailVerified, 
-    // profileCompleted,
+    profileCompleted,
     loading 
   } = UseAuth();
+  console.log({ currentUser, userRole, isEmailVerified, profileCompleted, loading });
 
   const location = useLocation();
 
@@ -32,9 +33,9 @@ export default function ProtectedRoute({
     return <Navigate to="/verified-account" replace />;
   }
 
-  // if (requireProfileCompletion && !profileCompleted) {
-  //   return <Navigate to="/onboarding" replace />;
-  // }
+  if (requireProfileCompletion && !profileCompleted) {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     console.warn('Access denied:', { userRole, allowedRoles });

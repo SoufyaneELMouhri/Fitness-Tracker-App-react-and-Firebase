@@ -9,7 +9,6 @@ import { EnvelopeFill, LockFill, EyeFill, EyeSlashFill } from 'react-bootstrap-i
 import { UseAuth } from '../../Hooks/UseAuth';
 import { useRoleNavigation } from '../../Hooks/useRoleNavigation';
 
-// Validation Schema
 const loginSchema = Yup.object().shape({
   email: Yup.string()
     .email('Invalid email address')
@@ -49,7 +48,6 @@ export default function Login() {
 
       setSubmitting(false);
     } catch (error) {
-      console.error('Login error:', error);
       setAuthError(error.message || 'An unexpected error occurred.');
       setSubmitting(false);
     }

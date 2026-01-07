@@ -16,6 +16,7 @@ import Nutrition from '../Pages/userFitness/Nutrition';
 import ProtectedRoute from './ProtectedRoute';
 import ForgetPassword from '../Pages/guests/ForgetPassword';
 import VerifiedAccount from '../Pages/guests/VerfitedAccounte';
+import OnboardingWrapper from '../Components/componentUsers/Onboarding/OnboardingWrapper';
 const router = createBrowserRouter([
     {
         path: '/',
@@ -27,6 +28,14 @@ const router = createBrowserRouter([
             {path : 'forget-password', element : <ForgetPassword />},
             {path : 'verified-account', element : <VerifiedAccount/>}
         ],
+    },
+    {
+        path : '/onboarding',
+        element : <ProtectedRoute requireProfileCompletion={false}
+          requireEmailVerification = {true}
+          allowedRoles={'user'}>
+            <OnboardingWrapper/>
+        </ProtectedRoute>
     },
     {
         path : 'app',

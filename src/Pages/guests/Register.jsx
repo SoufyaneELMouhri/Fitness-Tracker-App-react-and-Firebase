@@ -93,7 +93,7 @@ export default function Register() {
                     resetForm();
                     
                     // Navigate to verification page
-                    navigate('/verify-email', { replace: true });
+                    navigate('/verified-account', { replace: true });
                   } catch (error) {
                     console.error('❌ Registration error:', error);
                     let errorMessage = 'Registration failed. Please try again.';

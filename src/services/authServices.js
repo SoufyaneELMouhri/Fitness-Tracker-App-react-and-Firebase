@@ -44,7 +44,6 @@ const AuthService = {
         onboardingComplete: false,
       });
 
-      console.log("User registered. Verification email sent.");
       return userCredential.user;
     } catch (error) {
       console.error("REGISTER ERROR:", error);
@@ -79,9 +78,7 @@ const AuthService = {
 
       const userData = userDoc.data();
 
-      // ✅ Update emailVerified in Firestore if verified in Auth
       if (user.emailVerified && !userData.emailVerified) {
-        console.log('✅ Email verified! Updating Firestore...');
         
         await updateDoc(userDocRef, {
           emailVerified: true,
@@ -90,7 +87,6 @@ const AuthService = {
         });
       }
 
-      // ✅ Check if email not verified
       if (!user.emailVerified) {
         return { 
           user: user, 
@@ -132,7 +128,6 @@ const AuthService = {
     }
   },
 
-  // ✅ Check and update email verification
   checkAndUpdateEmailVerification: async () => {
     try {
       const user = auth.currentUser;
@@ -152,7 +147,6 @@ const AuthService = {
         };
       }
 
-      // Update Firestore
       const userDocRef = doc(db, 'users', updatedUser.uid);
       const userDoc = await getDoc(userDocRef);
 
@@ -246,9 +240,7 @@ const AuthService = {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         
-        // Update emailVerified if changed
         if (user.emailVerified && !userData.emailVerified) {
-          console.log('✅ Email verified! Updating Firestore...');
           
           await updateDoc(userDocRef, {
             emailVerified: true,

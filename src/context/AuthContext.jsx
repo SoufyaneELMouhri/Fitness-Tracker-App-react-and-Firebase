@@ -12,7 +12,6 @@ export const AuthProvider = ({ children }) => {
   const [profileCompleted, setProfileCompleted] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
 
-  // Listen to auth state changes
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChange(async (user) => {
       if (user) {

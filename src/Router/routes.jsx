@@ -17,6 +17,8 @@ import ProtectedRoute from './ProtectedRoute';
 import ForgetPassword from '../Pages/guests/ForgetPassword';
 import VerifiedAccount from '../Pages/guests/VerfitedAccounte';
 import OnboardingWrapper from '../Components/componentUsers/Onboarding/OnboardingWrapper';
+import ShowWorkout from '../Components/componentUsers/Workout/ShowWorkout';
+import EditWorkout from '../Components/componentUsers/Workout/EditWorkout';
 const router = createBrowserRouter([
     {
         path: '/',
@@ -48,6 +50,8 @@ const router = createBrowserRouter([
             { path : 'profile', element : <Profile/> },
             { path : 'progress', element : <Progress/> },
             { path : 'workouts', element : <Workouts/> },
+            {path : 'workouts/:id', element : <ShowWorkout/> },
+            {path : 'workouts/:id/edit', element : <EditWorkout/> },
             {path : 'nutrition', element : <Nutrition/>}
         ]
     },

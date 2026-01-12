@@ -8,18 +8,15 @@ const WorkoutContext = createContext(null);
 export const WorkoutProvider = ({ children }) => {
   const { currentUser } = UseAuth();
   
-  // State
   const [workouts, setWorkouts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [favoriteExercises, setFavoriteExercises] = useState([]);
   const [activeWorkout, setActiveWorkout] = useState(null);
   
-  // Pagination
   const [hasMoreWorkouts, setHasMoreWorkouts] = useState(true);
   const [lastWorkoutDoc, setLastWorkoutDoc] = useState(null);
 
-  // ✅ Load workouts on mount & user change
   useEffect(() => {
     if (!currentUser) {
       setWorkouts([]);
@@ -35,7 +32,6 @@ export const WorkoutProvider = ({ children }) => {
     loadFavorites();
   }, [currentUser]);
 
-  // ✅ Load initial workouts
   const loadWorkouts = useCallback(async (loadMore = false) => {
     if (!currentUser || (!loadMore && !hasMoreWorkouts)) return;
 
@@ -56,15 +52,14 @@ export const WorkoutProvider = ({ children }) => {
       setLastWorkoutDoc(lastDoc);
       setHasMoreWorkouts(newWorkouts.length === 20);
       
-      console.log('✅ Loaded workouts:', newWorkouts.length);
+      console.log('Loaded workouts:', newWorkouts.length);
     } catch (error) {
-      console.error('❌ Load workouts error:', error);
+      console.error('Load workouts error:', error);
     } finally {
       setLoading(false);
     }
   }, [currentUser?.uid, lastWorkoutDoc, hasMoreWorkouts]);
 
-  // ✅ Load workout stats
   const loadStats = useCallback(async () => {
     if (!currentUser) return;
 
@@ -72,11 +67,10 @@ export const WorkoutProvider = ({ children }) => {
       const workoutStats = await workoutServices.getWorkoutStats(currentUser.uid);
       setStats(workoutStats);
     } catch (error) {
-      console.error('❌ Load stats error:', error);
+      console.error('Load stats error:', error);
     }
   }, [currentUser?.uid]);
 
-  // ✅ Load favorite exercises
   const loadFavorites = useCallback(async () => {
     if (!currentUser) return;
 
@@ -84,11 +78,36 @@ export const WorkoutProvider = ({ children }) => {
       const favorites = await workoutServices.getFavoriteExercises(currentUser.uid, 10);
       setFavoriteExercises(favorites);
     } catch (error) {
-      console.error('❌ Load favorites error:', error);
+      console.error('Load favorites error:', error);
     }
   }, [currentUser?.uid]);
 
-  // ✅ Log new workout
+  const getWorkout = async (workoutId) => {
+    if (!currentUser) throw new Error('No user logged in');
+
+    try {
+      const cachedWorkout = workouts.find(w => w.id === workoutId);
+      if (cachedWorkout) {
+        console.log('Workout from cache:', workoutId);
+        return cachedWorkout;
+      }
+
+      console.log('Fetching workout from Firestore:', workoutId);
+      const workout = await workoutServices.getWorkout(workoutId);
+      
+      if (!workout) {
+        console.error('Workout not found:', workoutId);
+        return null;
+      }
+
+      console.log('Workout fetched:', workout);
+      return workout;
+    } catch (error) {
+      console.error('Get workout error:', error);
+      throw error;
+    }
+  };
+
   const logWorkout = async (workoutData) => {
     if (!currentUser) throw new Error('No user logged in');
 
@@ -96,68 +115,60 @@ export const WorkoutProvider = ({ children }) => {
       setLoading(true);
       const newWorkout = await workoutServices.logWorkout(workoutData);
       
-      // Add to beginning of list
       setWorkouts(prev => [newWorkout, ...prev]);
       
-      // Refresh stats
       await loadStats();
       
-      console.log('✅ Workout logged successfully');
+      console.log('Workout logged successfully');
       return newWorkout;
     } catch (error) {
-      console.error('❌ Log workout error:', error);
+      console.error('Log workout error:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Update workout
   const updateWorkout = async (workoutId, workoutData) => {
     try {
       setLoading(true);
       await workoutServices.updateWorkout(workoutId, workoutData);
       
-      // Update local state
       setWorkouts(prev => prev.map(w => 
         w.id === workoutId ? { ...w, ...workoutData } : w
       ));
       
-      console.log('✅ Workout updated');
+      console.log('Workout updated');
       return true;
     } catch (error) {
-      console.error('❌ Update workout error:', error);
+      console.error('Update workout error:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Delete workout
   const deleteWorkout = async (workoutId) => {
     try {
       setLoading(true);
       await workoutServices.deleteWorkout(workoutId);
       
-      // Remove from local state
       setWorkouts(prev => prev.filter(w => w.id !== workoutId));
       
-      console.log('✅ Workout deleted');
+      console.log('Workout deleted');
       return true;
     } catch (error) {
-      console.error('❌ Delete workout error:', error);
+      console.error('Delete workout error:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Load more workouts (infinite scroll)
   const loadMoreWorkouts = useCallback(() => {
     loadWorkouts(true);
   }, [loadWorkouts]);
 
-  // ✅ Start new workout
   const startWorkout = (workoutTemplate = null) => {
     setActiveWorkout({
       id: null,
@@ -169,7 +180,6 @@ export const WorkoutProvider = ({ children }) => {
     });
   };
 
-  // ✅ Complete active workout
   const completeWorkout = async (workoutData) => {
     if (!activeWorkout) throw new Error('No active workout');
 
@@ -185,7 +195,6 @@ export const WorkoutProvider = ({ children }) => {
   };
 
   const value = {
-    // Data
     workouts,
     stats,
     favoriteExercises,
@@ -193,7 +202,7 @@ export const WorkoutProvider = ({ children }) => {
     loading,
     hasMoreWorkouts,
     
-    // Actions
+    getWorkout,
     logWorkout,
     updateWorkout,
     deleteWorkout,
@@ -202,7 +211,6 @@ export const WorkoutProvider = ({ children }) => {
     completeWorkout,
     refreshWorkouts: loadWorkouts,
     
-    // Computed
     totalWorkouts: workouts.length,
     avgWorkoutCalories: stats?.totalCalories / workouts.length || 0
   };
@@ -213,6 +221,5 @@ export const WorkoutProvider = ({ children }) => {
     </WorkoutContext.Provider>
   );
 };
-
 
 export default WorkoutContext;

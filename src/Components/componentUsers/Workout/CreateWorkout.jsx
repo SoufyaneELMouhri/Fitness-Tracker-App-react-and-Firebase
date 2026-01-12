@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { useWorkouts } from '../../../Hooks/useWorkout'; // Adjust path from modal context
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useWorkouts } from '../../../Hooks/useWorkout';
 
-export default function CreateWorkout({ onClose, afterSave }) {
-  const navigate = useNavigate();
+export default function CreateWorkout({ onClose }) {
   const { logWorkout } = useWorkouts();
   
   const [formData, setFormData] = useState({
@@ -11,7 +9,6 @@ export default function CreateWorkout({ onClose, afterSave }) {
     type: 'strength',
     duration: '',
     caloriesBurned: '',
-    rating: 0,
     notes: '',
     workoutDate: new Date().toISOString().split('T')[0],
     exercises: []
@@ -21,27 +18,30 @@ export default function CreateWorkout({ onClose, afterSave }) {
     name: '',
     sets: '',
     reps: '',
-    weight: '',
-    restTime: ''
+    weight: ''
   });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const addExercise = () => {
-    if (!currentExercise.name || !currentExercise.sets || !currentExercise.reps) {
-      setError('Please fill exercise name, sets, and reps');
+    if (!currentExercise.name?.trim() || !currentExercise.sets || !currentExercise.reps) {
+      setError('Fill exercise name, sets, reps');
       return;
     }
+    
     setFormData(prev => ({
       ...prev,
       exercises: [...prev.exercises, { 
-        exerciseId: Date.now().toString(),
-        ...currentExercise,
+        name: currentExercise.name.trim(),
+        sets: parseInt(currentExercise.sets),
+        reps: parseInt(currentExercise.reps),
+        weight: currentExercise.weight ? parseFloat(currentExercise.weight) : null,
         completed: false
       }]
     }));
-    setCurrentExercise({ name: '', sets: '', reps: '', weight: '', restTime: '' });
+    setCurrentExercise({ name: '', sets: '', reps: '', weight: '' });
     setError('');
   };
 
@@ -54,8 +54,9 @@ export default function CreateWorkout({ onClose, afterSave }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (formData.exercises.length === 0) {
-      setError('Add at least one exercise');
+      setError('Add at least 1 exercise');
       return;
     }
     
@@ -64,234 +65,134 @@ export default function CreateWorkout({ onClose, afterSave }) {
     
     try {
       await logWorkout(formData);
-      
-      // SUCCESS: Close modal + optional callback
-      if (afterSave) {
-        afterSave();
-      } else if (onClose) {
+      setSuccess('✅ Workout saved!');
+      setTimeout(() => {
         onClose();
-      }
-      
-      // Optional: Show success message or redirect
-      alert('✅ Workout saved successfully!');
-      
+      }, 1200);
     } catch (err) {
-      setError(err.message || 'Failed to save workout');
-      console.error('Workout save error:', err);
+      setError(err.message || 'Save failed');
+      console.error('Save error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleExerciseChange = (e) => {
-    const { name, value } = e.target;
-    setCurrentExercise(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleCancel = () => {
-    if (onClose) onClose();
+    setCurrentExercise(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   return (
-    <div className="p-6 p-md-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Quick Info Row */}
-        <div className="row g-4 mb-6">
-          <div className="col-md-6">
-            <label className="form-label fw-bold fs-5 mb-3">🏷️ Workout Name</label>
-            <input
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="form-control form-control-lg rounded-3 shadow-sm border-2 border-light"
-              placeholder="Chest Day Crusher"
-              required
-            />
+    <div className="p-4">
+      <form onSubmit={handleSubmit}>
+        {success && (
+          <div className="alert alert-success mb-3 p-3 rounded-3">
+            {success}
           </div>
-          <div className="col-md-6">
-            <label className="form-label fw-bold fs-5 mb-3">📅 Date</label>
-            <input
-              name="workoutDate"
-              type="date"
-              value={formData.workoutDate}
-              onChange={handleInputChange}
-              className="form-control form-control-lg rounded-3 shadow-sm border-2 border-light"
-              required
-            />
+        )}
+
+        <div className="mb-4">
+          <input
+            name="name"
+            placeholder="Workout Name *"
+            className="form-control form-control-lg mb-2"
+            value={formData.name}
+            onChange={handleInputChange}
+            required
+          />
+          <div className="row g-2">
+            <div className="col">
+              <input
+                name="workoutDate"
+                type="date"
+                className="form-control"
+                value={formData.workoutDate}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div className="col">
+              <select name="type" className="form-select" onChange={handleInputChange} value={formData.type}>
+                <option value="strength">💪 Strength</option>
+                <option value="cardio">🏃 Cardio</option>
+                <option value="hiit">⚡ HIIT</option>
+                <option value="yoga">🧘 Yoga</option>
+                <option value="core">🎯 Core</option>
+              </select>
+            </div>
+          </div>
+          <div className="row g-2 mt-2">
+            <div className="col">
+              <input name="duration" placeholder="Duration (min)" type="number" min="1" className="form-control" onChange={handleInputChange} value={formData.duration} />
+            </div>
+            <div className="col">
+              <input name="caloriesBurned" placeholder="Calories" type="number" min="0" className="form-control" onChange={handleInputChange} value={formData.caloriesBurned} />
+            </div>
           </div>
         </div>
 
-        {/* Type & Metrics */}
-        <div className="row g-4">
-          <div className="col-md-4">
-            <label className="form-label fw-bold fs-6 mb-3">🎯 Type</label>
-            <select
-              name="type"
-              value={formData.type}
-              onChange={handleInputChange}
-              className="form-select form-select-lg rounded-3 shadow-sm border-2 border-light"
-            >
-              <option value="strength">💪 Strength</option>
-              <option value="cardio">🏃 Cardio</option>
-              <option value="hiit">⚡ HIIT</option>
-              <option value="yoga">🧘 Yoga</option>
-              <option value="core">🎯 Core</option>
-              <option value="flexibility">🤸 Flexibility</option>
-            </select>
+        <div className="card border-0 shadow-sm mb-4">
+          <div className="card-header bg-primary text-white p-3">
+            <h6 className="mb-0">Exercises ({formData.exercises.length})</h6>
           </div>
-          <div className="col-md-4">
-            <label className="form-label fw-bold fs-6 mb-3">⏱️ Duration (min)</label>
-            <input
-              name="duration"
-              type="number"
-              min="1"
-              value={formData.duration}
-              onChange={handleInputChange}
-              className="form-control form-control-lg rounded-3 shadow-sm border-2 border-light"
-              placeholder="45"
-            />
-          </div>
-          <div className="col-md-4">
-            <label className="form-label fw-bold fs-6 mb-3">🔥 Calories</label>
-            <input
-              name="caloriesBurned"
-              type="number"
-              min="0"
-              value={formData.caloriesBurned}
-              onChange={handleInputChange}
-              className="form-control form-control-lg rounded-3 shadow-sm border-2 border-light"
-              placeholder="350"
-            />
-          </div>
-        </div>
-
-        {/* Exercises Section */}
-        <div className="card border-0 shadow-lg rounded-4 overflow-hidden">
-          <div className="card-header bg-gradient-to-r from-info to-primary text-white p-4">
-            <h4 className="mb-0 fw-bold">
-              💥 Exercises <span className="badge bg-light text-dark ms-2">{formData.exercises.length}</span>
-            </h4>
-          </div>
-          <div className="card-body p-4">
-            {/* Add Exercise Form */}
-            <div className="row g-3 mb-5 p-4 bg-light rounded-3">
-              <h6 className="fw-bold mb-4 pb-2 border-bottom">➕ Add New Exercise</h6>
+          <div className="card-body p-3">
+            <div className="row g-2 mb-3 p-3 bg-light rounded">
               <div className="col-md-5">
-                <input
-                  name="name"
-                  value={currentExercise.name}
-                  onChange={handleExerciseChange}
-                  className="form-control form-control-lg rounded-3"
-                  placeholder="Bench Press"
-                />
+                <input name="name" placeholder="Exercise name" className="form-control" value={currentExercise.name} onChange={handleExerciseChange} />
               </div>
               <div className="col-md-2">
-                <input
-                  name="sets"
-                  type="number"
-                  value={currentExercise.sets}
-                  onChange={handleExerciseChange}
-                  className="form-control form-control-lg rounded-3"
-                  placeholder="4"
-                />
+                <input name="sets" placeholder="Sets" type="number" min="1" className="form-control" value={currentExercise.sets} onChange={handleExerciseChange} />
               </div>
               <div className="col-md-2">
-                <input
-                  name="reps"
-                  type="number"
-                  value={currentExercise.reps}
-                  onChange={handleExerciseChange}
-                  className="form-control form-control-lg rounded-3"
-                  placeholder="12"
-                />
+                <input name="reps" placeholder="Reps" type="number" min="1" className="form-control" value={currentExercise.reps} onChange={handleExerciseChange} />
               </div>
-              <div className="col-md-2">
-                <input
-                  name="weight"
-                  type="number"
-                  value={currentExercise.weight}
-                  onChange={handleExerciseChange}
-                  className="form-control form-control-lg rounded-3"
-                  placeholder="80"
-                />
+              <div className="col-md-3">
+                <input name="weight" placeholder="Weight kg" type="number" step="0.5" min="0" className="form-control" value={currentExercise.weight} onChange={handleExerciseChange} />
               </div>
-              <div className="col-md-1 d-grid">
-                <button
-                  type="button"
-                  className="btn btn-success btn-lg rounded-3 h-100"
-                  onClick={addExercise}
-                >
-                  ➕
-                </button>
+              <div className="col-12 mt-2">
+                <button type="button" className="btn btn-success me-2" onClick={addExercise}>➕ Add</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setCurrentExercise({ name: '', sets: '', reps: '', weight: '' })}>Clear</button>
               </div>
             </div>
 
-            {/* Exercises List */}
-            {formData.exercises.length > 0 && (
-              <div className="row g-3">
-                {formData.exercises.map((ex, index) => (
-                  <div key={index} className="col-12">
-                    <div className="d-flex align-items-center p-3 bg-white border rounded-3 shadow-sm">
-                      <div className="flex-grow-1">
-                        <div className="fw-bold fs-6">{ex.name}</div>
-                        <small className="text-muted">
-                          {ex.sets} × {ex.reps} {ex.weight && `@${ex.weight}kg`} 
-                          {ex.restTime && ` | Rest: ${ex.restTime}`}
-                        </small>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-outline-danger btn-sm rounded-pill px-3"
-                        onClick={() => removeExercise(index)}
-                      >
-                        🗑️
-                      </button>
-                    </div>
+            {formData.exercises.length > 0 ? (
+              formData.exercises.map((ex, i) => (
+                <div key={i} className="d-flex align-items-center p-2 border rounded mb-2 bg-white">
+                  <div className="flex-grow-1">
+                    <strong>{ex.name}</strong> {ex.sets}×{ex.reps} {ex.weight && `@${ex.weight}kg`}
                   </div>
-                ))}
+                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => removeExercise(i)}>🗑️</button>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-3 text-muted">
+                No exercises added yet
               </div>
             )}
           </div>
         </div>
 
-        {/* Notes */}
-        <div>
-          <label className="form-label fw-bold fs-5 mb-3">📝 Notes (Optional)</label>
-          <textarea
-            name="notes"
-            value={formData.notes}
-            onChange={handleInputChange}
-            rows="3"
-            className="form-control form-control-lg rounded-3 shadow-sm border-2 border-light"
-            placeholder="How did it feel? PRs? Notes for next time..."
-          />
-        </div>
+        <textarea
+          name="notes"
+          placeholder="Notes (optional)..."
+          rows="2"
+          className="form-control mb-3"
+          value={formData.notes}
+          onChange={handleInputChange}
+        />
 
-        {/* Error Display */}
-        {error && (
-          <div className="alert alert-danger rounded-3 shadow-sm" role="alert">
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <div className="alert alert-danger p-3 mb-3">{error}</div>}
 
-        {/* Action Buttons */}
-        <div className="d-flex gap-3 pt-4">
-          <button
-            type="button"
-            className="btn btn-outline-secondary btn-lg flex-fill rounded-3 shadow-sm"
-            onClick={handleCancel}
-            disabled={loading}
-          >
-            ❌ Cancel
+        <div className="d-flex gap-2">
+          <button type="button" className="btn btn-outline-secondary flex-fill py-2" onClick={onClose} disabled={loading}>
+            Cancel
           </button>
-          <button
-            type="submit"
-            className="btn btn-success btn-lg flex-fill rounded-3 shadow-lg fw-bold fs-5"
+          <button 
+            type="submit" 
+            className="btn btn-success flex-fill fw-bold py-2"
             disabled={loading || formData.exercises.length === 0}
           >
             {loading ? (
@@ -300,7 +201,7 @@ export default function CreateWorkout({ onClose, afterSave }) {
                 Saving...
               </>
             ) : (
-              `🚀 Save Workout (${formData.exercises.length} exercises)`
+              `Save (${formData.exercises.length} exercises)`
             )}
           </button>
         </div>

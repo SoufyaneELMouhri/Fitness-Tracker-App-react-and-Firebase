@@ -1,4 +1,3 @@
-// services/workouts/workoutServices.js
 import { 
   collection, 
   doc, 
@@ -19,7 +18,6 @@ import { auth, db } from '../firebase/firebase';
 
 const workoutServices = {
 
-
   logWorkout: async (workoutData) => {
     try {
       const user = auth.currentUser;
@@ -34,7 +32,6 @@ const workoutServices = {
 
       const docRef = await addDoc(collection(db, 'workouts'), workoutWithUser);
       
-      // Update user stats
       await updateDoc(doc(db, 'users', user.uid), {
         totalWorkouts: increment(1),
         [`coachStats.totalWorkouts`]: increment(1),
@@ -42,27 +39,22 @@ const workoutServices = {
         updated_at: serverTimestamp()
       });
 
-      console.log('✅ Workout logged:', docRef.id);
       return { id: docRef.id, ...workoutWithUser };
     } catch (error) {
-      console.error('❌ Log workout error:', error);
+      console.error('Log workout error:', error);
       throw error;
     }
   },
 
-  /**
-   * ✅ Get user workouts (pagination support)
-   */
   getUserWorkouts: async (userId, limitCount = 20, lastDoc = null) => {
     try {
       let q = query(
         collection(db, 'workouts'),
         where('userId', '==', userId),
-        orderBy('workoutDate', 'desc'),
+        orderBy('created_at', 'desc'), 
         limit(limitCount)
       );
 
-      // ✅ Fix: Use startAfter with last document
       if (lastDoc) {
         q = query(q, startAfter(lastDoc));
       }
@@ -73,44 +65,27 @@ const workoutServices = {
         ...docSnap.data()
       }));
 
-      // Return last doc for pagination
-      return { 
-        workouts, 
-        lastDoc: snapshot.docs[snapshot.docs.length - 1] 
-      };
+      return { workouts, lastDoc: snapshot.docs[snapshot.docs.length - 1] };
     } catch (error) {
-      console.error('❌ Get workouts error:', error);
+      console.error('Get workouts error:', error);
       return { workouts: [], lastDoc: null };
     }
   },
 
-  /**
-   * ✅ Get workouts by date range
-   */
   getWorkoutsByDate: async (userId, startDate, endDate) => {
     try {
-      const q = query(
-        collection(db, 'workouts'),
-        where('userId', '==', userId),
-        where('workoutDate', '>=', startDate),
-        where('workoutDate', '<=', endDate),
-        orderBy('workoutDate', 'desc')
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      }));
+      const { workouts } = await workoutServices.getUserWorkouts(userId, 50);
+      const filtered = workouts.filter(w => {
+        const date = w.workoutDate;
+        return date >= startDate && date <= endDate;
+      });
+      return filtered;
     } catch (error) {
-      console.error('❌ Get workouts by date error:', error);
+      console.error('Get workouts by date error:', error);
       return [];
     }
   },
 
-  /**
-   * ✅ Get single workout
-   */
   getWorkout: async (workoutId) => {
     try {
       const docSnap = await getDoc(doc(db, 'workouts', workoutId));
@@ -119,14 +94,11 @@ const workoutServices = {
       }
       return null;
     } catch (error) {
-      console.error('❌ Get workout error:', error);
+      console.error('Get workout error:', error);
       return null;
     }
   },
 
-  /**
-   * ✅ Update workout
-   */
   updateWorkout: async (workoutId, workoutData) => {
     try {
       const user = auth.currentUser;
@@ -137,17 +109,13 @@ const workoutServices = {
         updated_at: serverTimestamp()
       });
 
-      console.log('✅ Workout updated:', workoutId);
       return true;
     } catch (error) {
-      console.error('❌ Update workout error:', error);
+      console.error('Update workout error:', error);
       throw error;
     }
   },
 
-  /**
-   * ✅ Delete workout
-   */
   deleteWorkout: async (workoutId) => {
     try {
       const user = auth.currentUser;
@@ -155,53 +123,37 @@ const workoutServices = {
 
       await deleteDoc(doc(db, 'workouts', workoutId));
 
-      // Update user stats
       await updateDoc(doc(db, 'users', user.uid), {
         totalWorkouts: increment(-1)
       });
 
-      console.log('✅ Workout deleted:', workoutId);
       return true;
     } catch (error) {
-      console.error('❌ Delete workout error:', error);
+      console.error('Delete workout error:', error);
       throw error;
     }
   },
 
-  /**
-   * ✅ Get workout stats (last 30 days)
-   */
   getWorkoutStats: async (userId) => {
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const workouts = await workoutServices.getWorkoutsByDate(
-        userId, 
-        thirtyDaysAgo, 
-        new Date()
-      );
-
+      const { workouts } = await workoutServices.getUserWorkouts(userId, 30);
+      
       const stats = {
         totalWorkouts: workouts.length,
-        totalDuration: workouts.reduce((sum, w) => sum + (w.duration || 0), 0),
         totalCalories: workouts.reduce((sum, w) => sum + (w.caloriesBurned || 0), 0),
         avgRating: workouts.length > 0 
           ? (workouts.reduce((sum, w) => sum + (w.rating || 0), 0) / workouts.length)
           : 0,
-        longestStreak: calculateStreak(workouts)
+        longestStreak: workouts.length
       };
 
       return stats;
     } catch (error) {
-      console.error('❌ Get workout stats error:', error);
+      console.error('Get workout stats error:', error);
       return null;
     }
   },
 
-  /**
-   * ✅ Get top exercises for user
-   */
   getFavoriteExercises: async (userId, limit = 10) => {
     try {
       const { workouts } = await workoutServices.getUserWorkouts(userId, 50);
@@ -210,7 +162,7 @@ const workoutServices = {
       workouts.forEach(workout => {
         if (workout.exercises) {
           workout.exercises.forEach(ex => {
-            exerciseCounts[ex.exerciseId] = (exerciseCounts[ex.exerciseId] || 0) + 1;
+            exerciseCounts[ex.name || ex.exerciseId] = (exerciseCounts[ex.name || ex.exerciseId] || 0) + 1;
           });
         }
       });
@@ -222,62 +174,20 @@ const workoutServices = {
 
       return sortedExercises;
     } catch (error) {
-      console.error('❌ Get favorite exercises error:', error);
+      console.error('Get favorite exercises error:', error);
       return [];
     }
   },
 
-  /**
-   * ✅ Coach: Get client workouts
-   */
   getClientWorkouts: async (coachId, clientId, limit = 20) => {
     try {
-      const q = query(
-        collection(db, 'workouts'),
-        where('userId', '==', clientId),
-        where('coachId', '==', coachId),
-        orderBy('workoutDate', 'desc'),
-        limit(limit)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      }));
+      const { workouts } = await workoutServices.getUserWorkouts(clientId, limit);
+      return workouts.filter(w => w.coachId === coachId);
     } catch (error) {
-      console.error('❌ Get client workouts error:', error);
+      console.error('Get client workouts error:', error);
       return [];
     }
   }
-};
-
-// ✅ Helper function
-const calculateStreak = (workouts) => {
-  if (!workouts?.length) return 0;
-  
-  const dates = workouts
-    .map(w => w.workoutDate?.toDate?.())
-    .filter(Boolean)
-    .sort((a, b) => b - a);
-    
-  if (!dates.length) return 0;
-    
-  let streak = 1;
-  let maxStreak = 1;
-  
-  for (let i = 1; i < dates.length; i++) {
-    const prevDay = new Date(dates[i - 1]);
-    prevDay.setDate(prevDay.getDate() + 1);
-    
-    if (dates[i].toDateString() === prevDay.toDateString()) {
-      streak++;
-      maxStreak = Math.max(maxStreak, streak);
-    } else {
-      streak = 1;
-    }
-  }  
-  return maxStreak;
 };
 
 export default workoutServices;

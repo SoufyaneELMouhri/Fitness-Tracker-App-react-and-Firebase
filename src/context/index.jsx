@@ -2,6 +2,7 @@
 import { AuthProvider } from "./AuthContext";
 import { NutritionProvider } from "./nutritionContext";
 import { OnboardingProvider } from "./OnboardingContext";
+import { ProgressProvider } from "./progressContext";
 import { UserProvider } from "./UserContext";
 import { WorkoutProvider } from "./workoutContext";
 
@@ -13,7 +14,9 @@ const AppProvider = ({ children }) => {
                     <OnboardingProvider>
                         <WorkoutProvider>
                             <NutritionProvider>
-                                {children}
+                                <ProgressProvider>
+                                     {children}
+                                </ProgressProvider>
                             </NutritionProvider>
                         </WorkoutProvider>
                     </OnboardingProvider>

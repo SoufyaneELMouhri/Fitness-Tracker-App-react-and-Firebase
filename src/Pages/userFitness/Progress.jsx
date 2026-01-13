@@ -1,57 +1,181 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useProgress } from '../../Hooks/UseProgress';
 
 export default function Progress() {
-  const weeklyStats = [
-    { day: 'Mon', workouts: 1, calories: 450, duration: 45 },
-    { day: 'Tue', workouts: 1, calories: 380, duration: 35 },
-    { day: 'Wed', workouts: 0, calories: 0, duration: 0 },
-    { day: 'Thu', workouts: 1, calories: 520, duration: 55 },
-    { day: 'Fri', workouts: 1, calories: 410, duration: 40 },
-    { day: 'Sat', workouts: 2, calories: 680, duration: 75 },
-    { day: 'Sun', workouts: 1, calories: 390, duration: 38 }
-  ];
+  const {
+    // State
+    weightLogs,
+    weightStats,
+    measurements,
+    measurementChanges,
+    workoutSessions,
+    workoutStats,
+    workoutStreak,
+    personalRecords,
+    activeGoals,
+    progressSummary,
+    loading,
+    
+    // Functions
+    loadAllProgressData
+  } = useProgress();
 
-  const monthlyProgress = {
-    workoutsCompleted: 23,
-    totalCalories: 9850,
-    totalMinutes: 1140,
-    avgHeartRate: 142,
-    currentStreak: 5,
-    longestStreak: 12
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Calculate weekly stats from workout sessions
+  const getWeeklyStats = () => {
+    const today = new Date();
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const stats = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+      const dayWorkouts = workoutSessions.filter(w => w.date === dateString);
+      
+      stats.push({
+        day: weekDays[date.getDay()],
+        workouts: dayWorkouts.length,
+        calories: dayWorkouts.reduce((sum, w) => sum + (w.caloriesBurned || 0), 0),
+        duration: dayWorkouts.reduce((sum, w) => sum + (w.duration || 0), 0)
+      });
+    }
+
+    return stats;
   };
 
+  const weeklyStats = getWeeklyStats();
+  const maxCalories = Math.max(...weeklyStats.map(s => s.calories), 1);
+
+  // Calculate monthly progress
+  const monthlyProgress = {
+    workoutsCompleted: workoutStats.totalWorkouts || 0,
+    totalCalories: workoutStats.totalCalories || 0,
+    totalMinutes: workoutStats.totalDuration || 0,
+    avgHeartRate: 142, // You can add this to workout data
+    currentStreak: workoutStreak.currentStreak || 0,
+    longestStreak: workoutStreak.longestStreak || 0
+  };
+
+  // Body measurements comparison
   const bodyMeasurements = [
-    { metric: 'Weight', current: '78.5 kg', previous: '82.0 kg', change: '-3.5', trend: 'down' },
-    { metric: 'Body Fat', current: '18.2%', previous: '21.5%', change: '-3.3', trend: 'down' },
-    { metric: 'Muscle Mass', current: '64.2 kg', previous: '61.8 kg', change: '+2.4', trend: 'up' },
-    { metric: 'BMI', current: '23.1', previous: '24.6', change: '-1.5', trend: 'down' }
+    {
+      metric: 'Weight',
+      current: weightStats.currentWeight ? `${weightStats.currentWeight} kg` : 'N/A',
+      previous: weightStats.startWeight ? `${weightStats.startWeight} kg` : 'N/A',
+      change: weightStats.change ? weightStats.change.toString() : '0',
+      trend: parseFloat(weightStats.change || 0) < 0 ? 'down' : 'up'
+    }
   ];
 
+  // Add measurement changes if available
+  if (measurementChanges) {
+    if (measurementChanges.chest) {
+      bodyMeasurements.push({
+        metric: 'Chest',
+        current: `${measurementChanges.chest.current} cm`,
+        previous: `${measurementChanges.chest.start} cm`,
+        change: measurementChanges.chest.change,
+        trend: parseFloat(measurementChanges.chest.change) > 0 ? 'up' : 'down'
+      });
+    }
+    if (measurementChanges.waist) {
+      bodyMeasurements.push({
+        metric: 'Waist',
+        current: `${measurementChanges.waist.current} cm`,
+        previous: `${measurementChanges.waist.start} cm`,
+        change: measurementChanges.waist.change,
+        trend: parseFloat(measurementChanges.waist.change) < 0 ? 'down' : 'up'
+      });
+    }
+  }
+
+  // Achievements (you can make these dynamic based on actual progress)
   const achievements = [
-    { id: 1, title: '7-Day Streak', icon: '🔥', earned: true, date: 'Dec 20' },
-    { id: 2, title: '1000 Calories Burned', icon: '💪', earned: true, date: 'Dec 18' },
-    { id: 3, title: '50 Workouts', icon: '🏆', earned: true, date: 'Dec 15' },
-    { id: 4, title: 'Early Bird', icon: '🌅', earned: true, date: 'Dec 10' },
-    { id: 5, title: '30-Day Streak', icon: '⭐', earned: false, date: 'Locked' },
-    { id: 6, title: '100 Workouts', icon: '👑', earned: false, date: 'Locked' }
+    { 
+      id: 1, 
+      title: '7-Day Streak', 
+      icon: '🔥', 
+      earned: workoutStreak.currentStreak >= 7,
+      date: workoutStreak.currentStreak >= 7 ? 'Achieved' : 'Locked'
+    },
+    { 
+      id: 2, 
+      title: '1000 Calories Burned', 
+      icon: '💪', 
+      earned: monthlyProgress.totalCalories >= 1000,
+      date: monthlyProgress.totalCalories >= 1000 ? 'Achieved' : 'Locked'
+    },
+    { 
+      id: 3, 
+      title: '50 Workouts', 
+      icon: '🏆', 
+      earned: monthlyProgress.workoutsCompleted >= 50,
+      date: monthlyProgress.workoutsCompleted >= 50 ? 'Achieved' : 'Locked'
+    },
+    { 
+      id: 4, 
+      title: 'Early Bird', 
+      icon: '🌅', 
+      earned: false,
+      date: 'Locked'
+    },
+    { 
+      id: 5, 
+      title: '30-Day Streak', 
+      icon: '⭐', 
+      earned: workoutStreak.longestStreak >= 30,
+      date: workoutStreak.longestStreak >= 30 ? 'Achieved' : 'Locked'
+    },
+    { 
+      id: 6, 
+      title: '100 Workouts', 
+      icon: '👑', 
+      earned: monthlyProgress.workoutsCompleted >= 100,
+      date: monthlyProgress.workoutsCompleted >= 100 ? 'Achieved' : 'Locked'
+    }
   ];
 
-  const personalRecords = [
-    { exercise: 'Bench Press', record: '85 kg', date: 'Dec 22, 2025' },
-    { exercise: 'Squat', record: '120 kg', date: 'Dec 20, 2025' },
-    { exercise: 'Deadlift', record: '140 kg', date: 'Dec 18, 2025' },
-    { exercise: '5K Run', record: '24:15', date: 'Dec 15, 2025' }
-  ];
+  // Format personal records
+  const formattedPRs = personalRecords.slice(0, 4).map(pr => ({
+    exercise: pr.exerciseName,
+    record: `${pr.weight} ${pr.unit}${pr.reps ? ` x ${pr.reps}` : ''}`,
+    date: new Date(pr.date).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    })
+  }));
 
-  const maxCalories = Math.max(...weeklyStats.map(s => s.calories));
+  if (loading && workoutSessions.length === 0) {
+    return (
+      <div className="min-vh-100 bg-light d-flex justify-content-center align-items-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status"></div>
+          <p>Loading your progress...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-vh-100 bg-light p-4">
       <div className="container-fluid">
         {/* Header */}
         <div className="mb-4">
-          <h1 className="display-5 fw-bold">Your Progress 📈</h1>
-          <p className="text-muted">Track your fitness journey and celebrate your achievements</p>
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h1 className="display-5 fw-bold">Your Progress 📈</h1>
+              <p className="text-muted">Track your fitness journey and celebrate your achievements</p>
+            </div>
+            <button 
+              className="btn btn-primary"
+              onClick={() => loadAllProgressData()}
+            >
+              🔄 Refresh
+            </button>
+          </div>
         </div>
 
         {/* Monthly Overview Cards */}
@@ -125,43 +249,57 @@ export default function Progress() {
               <div className="card-body">
                 <h2 className="h4 fw-bold mb-4">Weekly Activity</h2>
                 
-                {/* Bar Chart */}
-                <div className="d-flex align-items-end justify-content-between gap-2" style={{height: '260px'}}>
-                  {weeklyStats.map((stat, index) => (
-                    <div key={index} className="flex-fill d-flex flex-column align-items-center gap-2">
-                      <div className="w-100 d-flex flex-column justify-content-end" style={{height: '200px'}}>
-                        <div 
-                          className="w-100 rounded-top position-relative"
-                          style={{
-                            height: `${(stat.calories / maxCalories) * 100}%`,
-                            background: 'linear-gradient(to top, #3b82f6, #60a5fa)',
-                            minHeight: stat.calories > 0 ? '10px' : '0'
-                          }}
-                        >
-                          <div className="position-absolute top-0 start-50 translate-middle bg-dark text-white px-2 py-1 rounded small opacity-0 hover-opacity-100" 
-                               style={{fontSize: '0.7rem', whiteSpace: 'nowrap'}}>
-                            {stat.calories} cal
+                {weeklyStats.every(s => s.calories === 0) ? (
+                  <div className="text-center py-5 text-muted">
+                    <span style={{fontSize: '3rem'}}>📊</span>
+                    <p className="mt-3">No workout data yet. Start exercising to see your progress!</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Bar Chart */}
+                    <div className="d-flex align-items-end justify-content-between gap-2" style={{height: '260px'}}>
+                      {weeklyStats.map((stat, index) => (
+                        <div key={index} className="flex-fill d-flex flex-column align-items-center gap-2">
+                          <div className="w-100 d-flex flex-column justify-content-end" style={{height: '200px'}}>
+                            <div 
+                              className="w-100 rounded-top position-relative"
+                              style={{
+                                height: `${(stat.calories / maxCalories) * 100}%`,
+                                background: 'linear-gradient(to top, #3b82f6, #60a5fa)',
+                                minHeight: stat.calories > 0 ? '10px' : '0'
+                              }}
+                              title={`${stat.calories} calories`}
+                            >
+                              {stat.calories > 0 && (
+                                <div className="position-absolute top-0 start-50 translate-middle-x bg-dark text-white px-2 py-1 rounded small" 
+                                     style={{fontSize: '0.7rem', whiteSpace: 'nowrap'}}>
+                                  {stat.calories}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="small fw-semibold mb-0">{stat.day}</p>
+                            <p className="small text-muted mb-0">{stat.workouts > 0 ? `${stat.workouts}x` : '-'}</p>
                           </div>
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="d-flex justify-content-center gap-4 pt-3 mt-3 border-top">
+                      <div className="d-flex align-items-center gap-2">
+                        <div style={{width: '16px', height: '16px', background: '#3b82f6'}} className="rounded"></div>
+                        <span className="small text-muted">Calories Burned</span>
                       </div>
-                      <div className="text-center">
-                        <p className="small fw-semibold mb-0">{stat.day}</p>
-                        <p className="small text-muted mb-0">{stat.workouts > 0 ? `${stat.workouts}x` : '-'}</p>
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="small text-muted">
+                          Total: {weeklyStats.reduce((sum, s) => sum + s.calories, 0)} cal
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Legend */}
-                <div className="d-flex justify-content-center gap-4 pt-3 mt-3 border-top">
-                  <div className="d-flex align-items-center gap-2">
-                    <div style={{width: '16px', height: '16px', background: '#3b82f6'}} className="rounded"></div>
-                    <span className="small text-muted">Calories Burned</span>
-                  </div>
-                  <div className="d-flex align-items-center gap-2">
-                    <span className="small text-muted">Total: {weeklyStats.reduce((sum, s) => sum + s.calories, 0)} cal</span>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -172,22 +310,33 @@ export default function Progress() {
               <div className="card-body">
                 <h2 className="h4 fw-bold mb-4">Body Measurements</h2>
                 
-                <div className="vstack gap-3">
-                  {bodyMeasurements.map((measurement, index) => (
-                    <div key={index} className="pb-3 border-bottom">
-                      <div className="d-flex justify-content-between align-items-center mb-2">
-                        <span className="small text-muted">{measurement.metric}</span>
-                        <span className={`badge ${measurement.trend === 'down' ? 'bg-success' : 'bg-primary'}`}>
-                          {measurement.change}
-                        </span>
+                {bodyMeasurements.length === 0 || bodyMeasurements[0].current === 'N/A' ? (
+                  <div className="text-center py-5 text-muted">
+                    <span style={{fontSize: '3rem'}}>📏</span>
+                    <p className="mt-3">No measurements yet. Start tracking your body metrics!</p>
+                  </div>
+                ) : (
+                  <div className="vstack gap-3">
+                    {bodyMeasurements.map((measurement, index) => (
+                      <div key={index} className="pb-3 border-bottom">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <span className="small text-muted">{measurement.metric}</span>
+                          <span className={`badge ${measurement.trend === 'down' ? 'bg-success' : 'bg-primary'}`}>
+                            {measurement.change > 0 ? '+' : ''}{measurement.change}
+                          </span>
+                        </div>
+                        <div className="d-flex align-items-baseline gap-2">
+                          <span className="h4 fw-bold mb-0">{measurement.current}</span>
+                          {measurement.previous !== measurement.current && (
+                            <span className="small text-muted text-decoration-line-through">
+                              {measurement.previous}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="d-flex align-items-baseline gap-2">
-                        <span className="h4 fw-bold mb-0">{measurement.current}</span>
-                        <span className="small text-muted text-decoration-line-through">{measurement.previous}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -214,7 +363,9 @@ export default function Progress() {
                       >
                         <div style={{fontSize: '2.5rem'}} className="mb-2">{achievement.icon}</div>
                         <p className="small fw-semibold mb-1">{achievement.title}</p>
-                        <p className="small mb-0" style={{fontSize: '0.7rem', opacity: 0.75}}>{achievement.date}</p>
+                        <p className="small mb-0" style={{fontSize: '0.7rem', opacity: 0.75}}>
+                          {achievement.date}
+                        </p>
                         {achievement.earned && (
                           <div className="position-absolute top-0 end-0 m-1 bg-white rounded-circle d-flex align-items-center justify-content-center"
                                style={{width: '20px', height: '20px'}}>
@@ -235,24 +386,31 @@ export default function Progress() {
               <div className="card-body">
                 <h2 className="h4 fw-bold mb-4">Personal Records 💪</h2>
                 
-                <div className="vstack gap-3">
-                  {personalRecords.map((record, index) => (
-                    <div 
-                      key={index}
-                      className="d-flex justify-content-between align-items-center p-3 rounded"
-                      style={{background: 'linear-gradient(90deg, #faf5ff 0%, #eff6ff 100%)'}}
-                    >
-                      <div>
-                        <h3 className="h6 fw-bold mb-0">{record.exercise}</h3>
-                        <p className="small text-muted mb-0">{record.date}</p>
+                {formattedPRs.length === 0 ? (
+                  <div className="text-center py-5 text-muted">
+                    <span style={{fontSize: '3rem'}}>🏋️</span>
+                    <p className="mt-3">No personal records yet. Push yourself to new limits!</p>
+                  </div>
+                ) : (
+                  <div className="vstack gap-3">
+                    {formattedPRs.map((record, index) => (
+                      <div 
+                        key={index}
+                        className="d-flex justify-content-between align-items-center p-3 rounded"
+                        style={{background: 'linear-gradient(90deg, #faf5ff 0%, #eff6ff 100%)'}}
+                      >
+                        <div>
+                          <h3 className="h6 fw-bold mb-0">{record.exercise}</h3>
+                          <p className="small text-muted mb-0">{record.date}</p>
+                        </div>
+                        <div className="text-end">
+                          <p className="h4 fw-bold mb-0" style={{color: '#9333ea'}}>{record.record}</p>
+                          <span className="small text-muted">PR</span>
+                        </div>
                       </div>
-                      <div className="text-end">
-                        <p className="h4 fw-bold text-purple mb-0" style={{color: '#9333ea'}}>{record.record}</p>
-                        <span className="small text-muted">PR</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
